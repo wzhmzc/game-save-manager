@@ -3,6 +3,7 @@ const KNOWN_APP_PAGES: Record<string, true> = {
   '/About': true,
   '/Settings': true,
   '/SyncSettings': true,
+  '/Games': true,
 };
 
 const LEGACY_HOME_PAGES: Record<string, string> = {
