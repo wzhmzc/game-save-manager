@@ -532,6 +532,7 @@
     },
     "sidebar": {
         "homepage": "欢迎界面",
+        "games_library": "游戏库",
         "add_game": "添加游戏",
         "sync_settings": "同步",
         "settings": "设置",
@@ -539,6 +540,11 @@
         "games": "游戏",
         "all_games": "全部",
         "auto_backup_on": "已启用自动备份"
+    },
+    "games": {
+        "title": "游戏库",
+        "count": "共 {count} 个游戏",
+        "empty": "还没有游戏，先添加一个吧"
     },
     "save_location_drawer": {
         "device_location": "此设备上的位置",
