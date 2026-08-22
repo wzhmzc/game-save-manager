@@ -532,6 +532,7 @@
     },
     "sidebar": {
         "homepage": "Home",
+        "games_library": "Game Library",
         "add_game": "Add game",
         "sync_settings": "Cloud sync",
         "settings": "Settings",
@@ -539,6 +540,11 @@
         "games": "Games",
         "all_games": "All",
         "auto_backup_on": "Auto backup enabled"
+    },
+    "games": {
+        "title": "Game Library",
+        "count": "{count} games",
+        "empty": "No games yet. Add your first one!"
     },
     "save_location_drawer": {
         "device_location": "Location on this device",
