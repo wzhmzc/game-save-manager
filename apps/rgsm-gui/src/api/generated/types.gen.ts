@@ -632,6 +632,12 @@ export type GameAutomationSettings = {
   on_process_exit?: boolean;
   on_process_start?: boolean;
   process_name?: string;
+  /**
+   * Restore the latest local Snapshot when a monitored process starts while an
+   * enabled save location of that Game is unavailable. Opt-in per Game: unlike
+   * every other process trigger this writes live save data.
+   */
+  restore_missing_save_on_start?: boolean;
   storage_key?: string;
 };
 
@@ -640,6 +646,7 @@ export type GameAutomationSettingsDraft = {
   on_process_exit?: boolean;
   on_process_start?: boolean;
   process_name?: string;
+  restore_missing_save_on_start?: boolean;
 };
 
 export type GameDefinitionDifference = {
