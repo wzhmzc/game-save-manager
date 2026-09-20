@@ -826,7 +826,7 @@ export type KeepV2LocalProgressRequest = {
 };
 
 export type LaunchGameOutcome = {
-  path: OpenPathOutcome;
+  route: LaunchRoute;
   save_check: LaunchSaveCheck;
 };
 
@@ -834,6 +834,19 @@ export type LaunchGameRequest = {
   path: string;
   storageKey: string;
 };
+
+/**
+ * How the launch was dispatched.
+ */
+export type LaunchRoute =
+  | {
+      app_id: string;
+      kind: 'steam';
+    }
+  | {
+      kind: 'path';
+      outcome: OpenPathOutcome;
+    };
 
 /**
  * What the pre-launch save check did, reported to the player.

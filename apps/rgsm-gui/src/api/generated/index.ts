@@ -472,6 +472,7 @@ export type {
   LaunchGameRequest,
   LaunchGameResponse,
   LaunchGameResponses,
+  LaunchRoute,
   LaunchSaveCheck,
   ListConfigBackupsData,
   ListConfigBackupsError,
