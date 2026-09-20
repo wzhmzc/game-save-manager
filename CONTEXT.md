@@ -376,7 +376,8 @@ _Avoid_: archive path, one-time restore path
 - **Cloud Backup** and **Multi-device Sync** upload Archives for local Snapshots added after their activation boundary, including authorized work accumulated while the **Device** was offline; neither mode automatically materializes remote history.
 - **Multi-device Sync** discovers updates and divergent progress; the player chooses before on-demand download and **Apply**.
 - **Process Awareness** supports optional capture; missing process information does not block synchronization.
-- A game-process start updates **Process Awareness** but never restores live save data.
+- A game-process start updates **Process Awareness**; it restores live save data only when that per-**Game** option is enabled and an enabled save location is unavailable, in which case the latest locally available **Snapshot** is replayed through the normal Apply gates.
+- A game-process start never adopts remote progress: **Auto Restore** on start replays only a **Snapshot** that already exists on this **Device**, and a save location that is available is left untouched.
 - A game-process exit may create a changed-data **Snapshot** only when that per-**Game** option is enabled; it never restores live save data.
 - **Remote Polling**, application-start reconciliation, and explicit synchronization discover remote progress independently from game-process start and exit events.
 - **Remote Polling** runs while the application is open, using the configured interval or the default interval when none is configured.
@@ -475,7 +476,10 @@ _Avoid_: archive path, one-time restore path
 > **Domain expert:** "No — process detection is optional and only required for process-exit capture. Remote Apply is always a player choice."
 
 > **Dev:** "Does detecting that a game started immediately restore remote progress?"
-> **Domain expert:** "No — process start only changes **Process Awareness**. Remote progress is discovered by **Remote Polling**, application-start reconciliation, or an explicit sync, and Apply still passes every safety gate."
+> **Domain expert:** "No — process start only changes **Process Awareness**. Remote progress is discovered by **Remote Polling**, application-start reconciliation, or an explicit sync, and Apply still passes every safety gate. The one exception is the per-**Game** **Auto Restore** option, which replays a **Snapshot** already available on this **Device** when an enabled save location is missing; it never downloads or adopts remote progress."
+>
+> **Dev:** "Does **Auto Restore** on process start need a confirmed baseline or a player prompt?"
+> **Domain expert:** "No — an unavailable save location is the trigger, and there is nothing to confirm because no live save data exists to lose. It still runs the pre-overwrite backup and the archive integrity check, and it writes nothing while every enabled save location is available."
 
 > **Dev:** "If this **Device** uses **Manual**, does the player lose access to old cloud snapshots?"
 > **Domain expert:** "No - **Manual** stops background archive transfer, while **On-demand Transfer** remains available."

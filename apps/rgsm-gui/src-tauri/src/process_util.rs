@@ -349,6 +349,7 @@ mod tests {
             on_process_start,
             on_process_exit: false,
             in_process_interval_secs: None,
+            restore_missing_save_on_start: false,
         }
     }
 

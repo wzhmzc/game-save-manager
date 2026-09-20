@@ -27,7 +27,8 @@ export function isAutoSaveConfigured(config: Config, game: Game): boolean {
   const hasProcessTrigger = Boolean(
     automation?.on_process_start ||
     automation?.on_process_exit ||
-    automation?.in_process_interval_secs != null
+    automation?.in_process_interval_secs != null ||
+    automation?.restore_missing_save_on_start
   );
   return Boolean(game.auto_backup || hasProcessTrigger);
 }

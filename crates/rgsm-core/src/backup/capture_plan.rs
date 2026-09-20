@@ -117,13 +117,13 @@ impl CapturePlan {
     }
 }
 
-fn is_non_applicable_report(report: &ResolutionReport) -> bool {
+pub(crate) fn is_non_applicable_report(report: &ResolutionReport) -> bool {
     report.diagnostics.iter().any(|diagnostic| {
         diagnostic.kind == crate::path_resolution::ResolutionDiagnosticKind::UnsupportedPlatform
     })
 }
 
-fn is_blocking_report(report: &ResolutionReport) -> bool {
+pub(crate) fn is_blocking_report(report: &ResolutionReport) -> bool {
     matches!(
         report.selection_state,
         ResolutionSelectionState::Missing

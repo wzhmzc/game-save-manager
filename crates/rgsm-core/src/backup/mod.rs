@@ -26,6 +26,7 @@ pub use capture_plan::{
     CaptureGroup, CapturePlan, CapturePlanError, CapturePreflightFailure, CaptureSourceKind,
     SaveUnitCaptureInput,
 };
+pub(crate) use capture_plan::{is_blocking_report, is_non_applicable_report};
 pub use device_binding::{GameDeviceBinding, RestoreMappingRule};
 pub use extra_backups::ExtraBackupItem;
 pub use extra_backups::{delete_extra_backup, extra_backup_folder_path, list_extra_backups};

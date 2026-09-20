@@ -16,6 +16,7 @@ pub use profile_reuse::ProfileReuseError;
 mod progress_review;
 mod retention;
 mod snapshot;
+pub use snapshot::AutoRestoreDecision;
 mod snapshot_description;
 pub use snapshot_description::SnapshotDescriptionOutcome;
 mod snapshot_sync;

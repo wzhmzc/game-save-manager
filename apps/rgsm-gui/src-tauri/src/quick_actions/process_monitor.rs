@@ -12,9 +12,18 @@ use rgsm_core::services::{LiveSaveSyncTarget, v2_live_save_sync_targets};
 
 use crate::process_util::{process_is_running, process_name_for_game, running_process_names};
 
-use super::{QuickActionType, perform_changed_auto_backup};
+use super::{QuickActionType, perform_auto_restore, perform_changed_auto_backup};
 
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_secs(2);
+
+/// What a process state transition asks the monitor to do, in execution order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProcessTrigger {
+    /// An enabled save location is missing, so the latest local Snapshot is applied
+    /// before the process gets a chance to write new progress over it.
+    RestoreMissingSave,
+    AutoBackup(QuickActionType),
+}
 
 pub enum ProcessMonitorCommand {
     SyncFromConfig(Vec<MonitoredProcessGame>),
@@ -157,6 +166,7 @@ fn merge_live_save_exit_targets(
                     on_process_start: false,
                     on_process_exit: true,
                     in_process_interval_secs: None,
+                    restore_missing_save_on_start: false,
                 },
                 game,
                 process_name: target.process_name,
@@ -252,41 +262,72 @@ async fn poll_runtime_games(app: &AppHandle, games: &mut HashMap<String, Process
     let now = Instant::now();
     for entry in games.values_mut() {
         let is_running = process_is_running(&processes, &entry.process_name);
-        let mut triggers = Vec::new();
+        let interval_due = is_running
+            && entry
+                .next_interval
+                .is_some_and(|next_interval| next_interval <= now);
+        let triggers = transition_triggers(
+            &entry.automation,
+            is_running,
+            entry.was_running,
+            interval_due,
+        );
 
-        if is_running && !entry.was_running {
-            if entry.automation.on_process_start {
-                triggers.push(QuickActionType::ProcessStart);
-            }
+        if (is_running && !entry.was_running) || interval_due {
             entry.next_interval = entry
                 .automation
                 .in_process_interval_secs
                 .map(|secs| now + Duration::from_secs(secs as u64));
-        } else if is_running
-            && let Some(next_interval) = entry.next_interval
-            && next_interval <= now
-        {
-            triggers.push(QuickActionType::ProcessInterval);
-            entry.next_interval = entry
-                .automation
-                .in_process_interval_secs
-                .map(|secs| now + Duration::from_secs(secs as u64));
-        }
-
-        if !is_running && entry.was_running {
-            if entry.automation.on_process_exit {
-                triggers.push(QuickActionType::ProcessExit);
-            }
+        } else if !is_running && entry.was_running {
             entry.next_interval = None;
         }
 
         entry.was_running = is_running;
 
         for trigger in triggers {
-            let retention = process_backup_retention(&entry.game);
-            perform_changed_auto_backup(app, &entry.game, retention, trigger).await;
+            match trigger {
+                ProcessTrigger::RestoreMissingSave => perform_auto_restore(app, &entry.game).await,
+                ProcessTrigger::AutoBackup(trigger) => {
+                    let retention = process_backup_retention(&entry.game);
+                    perform_changed_auto_backup(app, &entry.game, retention, trigger).await;
+                }
+            }
         }
     }
+}
+
+/// Triggers for one poll, derived only from the transition and the automation
+/// settings so the decision stays testable without a running AppHandle.
+///
+/// A missing save location is restored before the start backup runs: capture
+/// preflight blocks an unavailable location, so the backup only becomes
+/// meaningful once the Snapshot has been replayed.
+fn transition_triggers(
+    automation: &GameAutomationSettings,
+    is_running: bool,
+    was_running: bool,
+    interval_due: bool,
+) -> Vec<ProcessTrigger> {
+    if is_running && !was_running {
+        let mut triggers = Vec::new();
+        if automation.restore_missing_save_on_start {
+            triggers.push(ProcessTrigger::RestoreMissingSave);
+        }
+        if automation.on_process_start {
+            triggers.push(ProcessTrigger::AutoBackup(QuickActionType::ProcessStart));
+        }
+        return triggers;
+    }
+
+    if interval_due {
+        return vec![ProcessTrigger::AutoBackup(QuickActionType::ProcessInterval)];
+    }
+
+    if !is_running && was_running && automation.on_process_exit {
+        return vec![ProcessTrigger::AutoBackup(QuickActionType::ProcessExit)];
+    }
+
+    Vec::new()
 }
 
 fn process_backup_retention(game: &Game) -> Option<&AutoBackupConfig> {
@@ -367,6 +408,66 @@ mod tests {
     #[test]
     fn process_backup_retention_is_absent_without_game_auto_backup_config() {
         assert!(process_backup_retention(&test_game()).is_none());
+    }
+
+    #[test]
+    fn start_transition_restores_before_the_start_backup() {
+        let mut automation = automation(None);
+        automation.restore_missing_save_on_start = true;
+        automation.on_process_start = true;
+
+        let triggers = transition_triggers(&automation, true, false, false);
+
+        assert_eq!(
+            triggers,
+            vec![
+                ProcessTrigger::RestoreMissingSave,
+                ProcessTrigger::AutoBackup(QuickActionType::ProcessStart),
+            ]
+        );
+    }
+
+    #[test]
+    fn start_transition_without_the_option_only_backs_up() {
+        let mut automation = automation(None);
+        automation.on_process_start = true;
+
+        let triggers = transition_triggers(&automation, true, false, false);
+
+        assert_eq!(
+            triggers,
+            vec![ProcessTrigger::AutoBackup(QuickActionType::ProcessStart)]
+        );
+    }
+
+    #[test]
+    fn running_and_exit_transitions_never_restore() {
+        let mut automation = automation(Some(60));
+        automation.restore_missing_save_on_start = true;
+        automation.on_process_exit = true;
+
+        assert_eq!(
+            transition_triggers(&automation, true, true, true),
+            vec![ProcessTrigger::AutoBackup(QuickActionType::ProcessInterval)]
+        );
+        assert_eq!(
+            transition_triggers(&automation, false, true, false),
+            vec![ProcessTrigger::AutoBackup(QuickActionType::ProcessExit)]
+        );
+    }
+
+    #[test]
+    fn restore_option_alone_triggers_once_per_process_run() {
+        let mut automation = automation(None);
+        automation.restore_missing_save_on_start = true;
+
+        assert_eq!(
+            transition_triggers(&automation, true, false, false),
+            vec![ProcessTrigger::RestoreMissingSave]
+        );
+        // Later polls of the same run are not start transitions.
+        assert!(transition_triggers(&automation, true, true, false).is_empty());
+        assert!(transition_triggers(&automation, false, false, false).is_empty());
     }
 
     #[test]
@@ -468,6 +569,7 @@ mod tests {
             on_process_start: false,
             on_process_exit: false,
             in_process_interval_secs: interval_secs,
+            restore_missing_save_on_start: false,
         }
     }
 

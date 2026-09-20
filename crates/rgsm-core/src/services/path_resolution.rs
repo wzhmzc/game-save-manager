@@ -159,6 +159,23 @@ impl ServiceContext {
         )
     }
 
+    /// Enabled Save Units whose capture location is currently unavailable.
+    ///
+    /// Reuses the Capture preflight classification of [`Self::capture_plan`], so a
+    /// location reported here is exactly a location that would block a capture.
+    /// Save Units that do not apply to this platform are ignored rather than
+    /// reported as missing.
+    pub fn missing_enabled_save_units(&self, config: &Config, game: &Game) -> Vec<u32> {
+        game.save_paths
+            .iter()
+            .filter(|save_unit| save_unit.enabled)
+            .filter_map(|save_unit| {
+                let report = self.resolve_save_unit(config, game, save_unit);
+                is_missing_capture_report(&report).then_some(save_unit.id)
+            })
+            .collect()
+    }
+
     /// Resolve a Save Unit against an explicitly supplied configuration snapshot.
     /// This is the composition boundary for host paths and per-device resources.
     pub fn resolve_save_unit(
@@ -497,6 +514,13 @@ fn empty_concrete_report(path: &str) -> ResolutionReport {
     }
 }
 
+/// Whether a Capture resolution report means "this Save Unit currently has no data
+/// at its configured location". Save Units that do not apply to this platform are
+/// never reported as missing.
+pub(crate) fn is_missing_capture_report(report: &ResolutionReport) -> bool {
+    !crate::backup::is_non_applicable_report(report) && crate::backup::is_blocking_report(report)
+}
+
 fn blocked_report(raw: &str, message: &str) -> ResolutionReport {
     ResolutionReport {
         raw_pattern: raw.to_string(),
@@ -610,5 +634,61 @@ mod concrete_tests {
             report.selection_state,
             ResolutionSelectionState::Explicit { .. }
         ));
+    }
+
+    #[test]
+    fn absent_concrete_targets_are_missing_for_capture() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let target = temp.path().join("missing").join("save.dat");
+
+        let report = resolve_concrete(
+            Some(&target.to_string_lossy().into_owned()),
+            &SaveUnitType::File,
+            None,
+            ResolutionPurpose::Capture,
+        );
+
+        assert!(is_missing_capture_report(&report));
+    }
+
+    #[test]
+    fn present_concrete_targets_are_not_missing_for_capture() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let target = temp.path().join("save.dat");
+        std::fs::write(&target, b"save").unwrap();
+
+        let report = resolve_concrete(
+            Some(&target.to_string_lossy().into_owned()),
+            &SaveUnitType::File,
+            None,
+            ResolutionPurpose::Capture,
+        );
+
+        assert!(!is_missing_capture_report(&report));
+    }
+
+    #[test]
+    fn save_units_without_a_current_device_path_are_missing_for_capture() {
+        let report = resolve_concrete(
+            None,
+            &SaveUnitType::Folder,
+            None,
+            ResolutionPurpose::Capture,
+        );
+
+        assert!(is_missing_capture_report(&report));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn unsupported_platform_units_are_never_missing() {
+        let report = resolve_concrete(
+            Some(&"HKEY_CURRENT_USER/Software/Game".to_string()),
+            &SaveUnitType::WinRegistry,
+            None,
+            ResolutionPurpose::Capture,
+        );
+
+        assert!(!is_missing_capture_report(&report));
     }
 }

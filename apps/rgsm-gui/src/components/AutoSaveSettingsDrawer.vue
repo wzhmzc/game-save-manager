@@ -62,6 +62,7 @@ const draft = reactive({
   onExit: true,
   intervalEnabled: false,
   processIntervalSecs: 300 as number | undefined,
+  restoreOnMissing: false,
 });
 const sharedRetentionEnabled = ref(false);
 const sharedRetentionLimit = ref<number | undefined>(10);
@@ -82,13 +83,15 @@ function syncDraft() {
   draft.processEnabled = Boolean(
     automation?.on_process_start ||
     automation?.on_process_exit ||
-    automation?.in_process_interval_secs != null
+    automation?.in_process_interval_secs != null ||
+    automation?.restore_missing_save_on_start
   );
   draft.processName = automation?.process_name ?? '';
   draft.onStart = automation?.on_process_start ?? false;
   draft.onExit = automation?.on_process_exit ?? true;
   draft.intervalEnabled = automation?.in_process_interval_secs != null;
   draft.processIntervalSecs = automation?.in_process_interval_secs ?? 300;
+  draft.restoreOnMissing = automation?.restore_missing_save_on_start ?? false;
   sharedRetentionEnabled.value = props.cloudGame?.retention_limit != null;
   sharedRetentionLimit.value = props.cloudGame?.retention_limit ?? 10;
 }
@@ -116,7 +119,8 @@ function onTimerPresetChange(value: string) {
 
 function buildAutomation() {
   const hasProcessTrigger =
-    draft.processEnabled && (draft.onStart || draft.onExit || draft.intervalEnabled);
+    draft.processEnabled &&
+    (draft.onStart || draft.onExit || draft.intervalEnabled || draft.restoreOnMissing);
   if (!hasProcessTrigger) {
     return null;
   }
@@ -127,6 +131,7 @@ function buildAutomation() {
     on_process_exit: draft.processEnabled && draft.onExit,
     in_process_interval_secs:
       draft.processEnabled && draft.intervalEnabled ? (draft.processIntervalSecs ?? 300) : null,
+    restore_missing_save_on_start: draft.processEnabled && draft.restoreOnMissing,
   };
 }
 
@@ -324,6 +329,14 @@ watch(
               class="w-36"
               :aria-label="$t('manage.process_monitor_interval_secs')"
             />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <KCheckbox v-model="draft.restoreOnMissing">
+              {{ $t('manage.process_monitor_restore_missing') }}
+            </KCheckbox>
+            <p v-if="draft.restoreOnMissing" class="text-xs leading-relaxed text-text-dim">
+              {{ $t('manage.process_monitor_restore_missing_hint') }}
+            </p>
           </div>
         </div>
       </section>

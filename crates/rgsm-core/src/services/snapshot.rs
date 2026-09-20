@@ -1,7 +1,7 @@
 use crate::backup::{
     ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions,
     CaptureSourceKind, CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier,
-    RestorePlan, SaveUnit, SaveUnitType, SevenZBackend, TimerSnapshotDecision, ZipBackend,
+    RestorePlan, SaveUnit, SaveUnitType, SevenZBackend, Snapshot, TimerSnapshotDecision, ZipBackend,
     archive_file_name, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
@@ -22,6 +22,35 @@ fn notify_stage(notifier: Option<&dyn RestoreNotifier>, msg: &str) {
             msg,
         );
     }
+}
+
+/// Outcome of the automatic restore that runs when a monitored process starts
+/// while an enabled save location of its Game is unavailable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AutoRestoreDecision {
+    /// The latest locally available Snapshot was applied.
+    Restored { date: String },
+    /// Every enabled save location is available, so nothing was written.
+    SkippedSavePathPresent,
+    /// The Game has no enabled Save Unit to check.
+    SkippedNoEnabledSaveUnits,
+    /// Snapshots exist, but none has a Local Archive on this Device.
+    SkippedNoLocalArchive,
+    /// The Game has no Snapshot at all.
+    NoBackupAvailable,
+}
+
+/// Newest Snapshot whose Local Archive is present on this Device, using the same
+/// ordering as [`GameSnapshots::latest_snapshot`].
+fn latest_locally_available_snapshot<'a>(
+    game_dir: &std::path::Path,
+    snapshots: &'a GameSnapshots,
+) -> Option<&'a Snapshot> {
+    snapshots
+        .backups
+        .iter()
+        .filter(|snapshot| snapshot_archive_path(game_dir, snapshot).exists())
+        .max_by_key(|snapshot| snapshot.creation_time())
 }
 
 impl ServiceContext {
@@ -49,6 +78,42 @@ impl ServiceContext {
             .clone();
         self.restore_snapshot(game, &snapshot.date, source, notifier)
             .await
+    }
+
+    /// Restore the latest locally available Snapshot when an enabled save
+    /// location is unavailable.
+    ///
+    /// This is the only path that writes live save data without an explicit
+    /// player action, so it stays behind a per-Game opt-in and never invents a
+    /// baseline: it only replays a Snapshot that already exists on this Device.
+    /// The `before_restore` gate still runs, so an overwrite backup and the
+    /// archive integrity check behave exactly like a manual Apply.
+    pub async fn restore_missing_save_path(
+        &self,
+        game: &Game,
+        source: HookSource,
+        notifier: Option<&dyn RestoreNotifier>,
+    ) -> Result<AutoRestoreDecision, BackupError> {
+        let config = get_config()?;
+        if !game.save_paths.iter().any(|save_unit| save_unit.enabled) {
+            return Ok(AutoRestoreDecision::SkippedNoEnabledSaveUnits);
+        }
+        if self.missing_enabled_save_units(&config, game).is_empty() {
+            return Ok(AutoRestoreDecision::SkippedSavePathPresent);
+        }
+
+        let snapshots = game.get_game_snapshots_info()?;
+        if snapshots.backups.is_empty() {
+            return Ok(AutoRestoreDecision::NoBackupAvailable);
+        }
+        let game_dir = get_backup_path()?.join(game.backup_dir_name().as_ref());
+        let Some(snapshot) = latest_locally_available_snapshot(&game_dir, &snapshots) else {
+            return Ok(AutoRestoreDecision::SkippedNoLocalArchive);
+        };
+
+        let date = snapshot.date.clone();
+        self.restore_snapshot(game, &date, source, notifier).await?;
+        Ok(AutoRestoreDecision::Restored { date })
     }
 
     pub async fn create_snapshot(
@@ -660,5 +725,62 @@ mod tests {
 
         assert_eq!(groups[0].kind, CaptureSourceKind::Directory);
         assert!(groups[0].delete_before_apply);
+    }
+
+    fn snapshot(date: &str, created_at: i64) -> Snapshot {
+        Snapshot {
+            date: date.to_string(),
+            describe: String::new(),
+            path: String::new(),
+            archive_format: ArchiveFormat::SevenZ,
+            size: 0,
+            parent: None,
+            archive_hash: None,
+            created_at: Some(created_at),
+            device_id: None,
+            created_by: CreatedBy::Manual,
+        }
+    }
+
+    #[test]
+    fn latest_locally_available_snapshot_prefers_the_newest_present_archive() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let game_dir = temp.path();
+        let mut snapshots = GameSnapshots::new("Game");
+        snapshots.backups = vec![
+            snapshot("2026-01-01_00-00-00", 1),
+            snapshot("2026-01-02_00-00-00", 2),
+        ];
+        std::fs::write(game_dir.join("2026-01-01_00-00-00.7z"), b"older").unwrap();
+        std::fs::write(game_dir.join("2026-01-02_00-00-00.7z"), b"newer").unwrap();
+
+        let picked = latest_locally_available_snapshot(game_dir, &snapshots).unwrap();
+
+        assert_eq!(picked.date, "2026-01-02_00-00-00");
+    }
+
+    #[test]
+    fn latest_locally_available_snapshot_skips_an_evicted_newest_archive() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let game_dir = temp.path();
+        let mut snapshots = GameSnapshots::new("Game");
+        snapshots.backups = vec![
+            snapshot("2026-01-01_00-00-00", 1),
+            snapshot("2026-01-02_00-00-00", 2),
+        ];
+        std::fs::write(game_dir.join("2026-01-01_00-00-00.7z"), b"older").unwrap();
+
+        let picked = latest_locally_available_snapshot(game_dir, &snapshots).unwrap();
+
+        assert_eq!(picked.date, "2026-01-01_00-00-00");
+    }
+
+    #[test]
+    fn latest_locally_available_snapshot_is_absent_without_local_archives() {
+        let temp = temp_dir::TempDir::new().unwrap();
+        let mut snapshots = GameSnapshots::new("Game");
+        snapshots.backups = vec![snapshot("2026-01-01_00-00-00", 1)];
+
+        assert!(latest_locally_available_snapshot(temp.path(), &snapshots).is_none());
     }
 }

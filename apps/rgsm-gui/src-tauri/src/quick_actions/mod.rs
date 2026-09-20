@@ -1,4 +1,5 @@
 mod auto_backup;
+mod auto_restore;
 mod automation_validation;
 mod hotkeys;
 mod manager;
@@ -8,6 +9,7 @@ mod tray;
 mod utils;
 
 pub use auto_backup::perform_changed_auto_backup;
+pub use auto_restore::perform_auto_restore;
 pub use automation_validation::validate_game_automation_target;
 pub use manager::QuickActionManager;
 pub use process_monitor::ProcessMonitor;
