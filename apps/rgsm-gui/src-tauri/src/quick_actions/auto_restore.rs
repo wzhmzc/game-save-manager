@@ -54,7 +54,10 @@ pub async fn perform_auto_restore(app: &AppHandle, game: &Game) {
                 game,
                 QuickActionStatus::Failure,
                 t!("backend.auto_restore.failed"),
-                t!("backend.auto_restore.no_backup_detail", game = game.name.as_str()),
+                t!(
+                    "backend.auto_restore.no_backup_detail",
+                    game = game.name.as_str()
+                ),
             );
         }
         Ok(AutoRestoreDecision::SkippedNoLocalArchive) => {
@@ -68,7 +71,10 @@ pub async fn perform_auto_restore(app: &AppHandle, game: &Game) {
                 game,
                 QuickActionStatus::Failure,
                 t!("backend.auto_restore.failed"),
-                t!("backend.auto_restore.archive_missing_detail", game = game.name.as_str()),
+                t!(
+                    "backend.auto_restore.archive_missing_detail",
+                    game = game.name.as_str()
+                ),
             );
         }
         Ok(decision) => {
@@ -91,7 +97,10 @@ pub async fn perform_auto_restore(app: &AppHandle, game: &Game) {
                 t!("backend.auto_restore.failed"),
                 format!(
                     "{}\n{err}",
-                    t!("backend.auto_restore.failed_detail", game = game.name.as_str())
+                    t!(
+                        "backend.auto_restore.failed_detail",
+                        game = game.name.as_str()
+                    )
                 ),
             );
         }

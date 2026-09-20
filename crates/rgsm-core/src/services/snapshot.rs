@@ -1,8 +1,8 @@
 use crate::backup::{
     ArchiveBackend, ArchiveCaptureGroup, ArchiveFormat, ArchiveVersion, CaptureSnapshotOptions,
     CaptureSourceKind, CreatedBy, Game, GameSnapshots, RestoreNotificationLevel, RestoreNotifier,
-    RestorePlan, SaveUnit, SaveUnitType, SevenZBackend, Snapshot, TimerSnapshotDecision, ZipBackend,
-    archive_file_name, snapshot_archive_path,
+    RestorePlan, SaveUnit, SaveUnitType, SevenZBackend, Snapshot, TimerSnapshotDecision,
+    ZipBackend, archive_file_name, snapshot_archive_path,
 };
 use crate::config::{get_backup_path, get_config, resolve_backup_path};
 use crate::hooks::{
