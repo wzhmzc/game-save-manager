@@ -345,7 +345,10 @@ mod tests {
         let installed = installed("M:/SteamLibrary", "Sekiro", 814380);
         let launch_path = PathBuf::from(r"M:\SteamLibrary\steamapps\common\Sekiro2\other.exe");
 
-        assert_eq!(steam_app_id_for_install_path(&launch_path, &installed), None);
+        assert_eq!(
+            steam_app_id_for_install_path(&launch_path, &installed),
+            None
+        );
     }
 
     #[test]
@@ -409,9 +412,14 @@ mod tests {
     fn games_without_steam_information_keep_the_configured_path() {
         let game = game_without_meta();
         let launch_path = r"M:\SteamLibrary\steamapps\common\Sekiro\sekiro.exe";
-        let dispatch =
-            resolve_game_launch_with(&game, launch_path, None, &Config::default(), &HashMap::new())
-                .unwrap();
+        let dispatch = resolve_game_launch_with(
+            &game,
+            launch_path,
+            None,
+            &Config::default(),
+            &HashMap::new(),
+        )
+        .unwrap();
 
         assert_eq!(
             dispatch,
@@ -424,14 +432,9 @@ mod tests {
         let game = game_without_meta();
         let launch_path = r"M:\SteamLibrary\steamapps\common\Sekiro\sekiro.exe";
         let installed = installed("M:/SteamLibrary", "Sekiro", 814380);
-        let dispatch = resolve_game_launch_with(
-            &game,
-            launch_path,
-            None,
-            &Config::default(),
-            &installed,
-        )
-        .unwrap();
+        let dispatch =
+            resolve_game_launch_with(&game, launch_path, None, &Config::default(), &installed)
+                .unwrap();
 
         assert_eq!(
             dispatch,
