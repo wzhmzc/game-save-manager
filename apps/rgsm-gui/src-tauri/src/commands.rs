@@ -18,7 +18,9 @@ use rgsm_core::config::{
 use rgsm_core::device::{Device, get_current_device_id};
 use rgsm_core::hooks::{HookPipeline, HookSource};
 use rgsm_core::ludusavi_manifest::{self, ImportableGame, LudusaviManifestStatus, SavePath};
-use rgsm_core::path_launcher::{OpenManagedLocationOutcome, OpenManagedLocationWarning};
+use rgsm_core::path_launcher::{
+    GameLaunchDispatch, OpenManagedLocationOutcome, OpenManagedLocationWarning,
+};
 use rgsm_core::path_pattern::{PathPlaceholder, PathPlaceholderDescriptor};
 use rgsm_core::path_resolution::ResolutionReport;
 use rgsm_core::path_resolver;
@@ -37,6 +39,7 @@ use rgsm_core::backup::{RestoreNotificationLevel, RestoreNotifier};
 use rust_i18n::t;
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
@@ -324,9 +327,20 @@ impl From<AutoRestoreDecision> for LaunchSaveCheck {
     }
 }
 
+/// How the launch was dispatched.
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum LaunchRoute {
+    /// Steam bootstrapped the Game. Spawning a Steam Game's executable directly
+    /// would skip Steam DRM, the overlay and `SteamAppId`.
+    Steam { app_id: String },
+    /// The configured path was started or opened with the system handler.
+    Path { outcome: OpenPathOutcome },
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
 pub struct LaunchGameOutcome {
-    pub path: OpenPathOutcome,
+    pub route: LaunchRoute,
     pub save_check: LaunchSaveCheck,
 }
 
@@ -348,10 +362,19 @@ pub async fn launch_game(
     );
 
     let config = get_config().map_err(|e| e.to_string())?;
-    let save_check = match find_game_by_identity(&config, &storage_key) {
-        Some(game) if checks_saves_before_launch(&config, &game) => {
+    let game = find_game_by_identity(&config, &storage_key);
+    if game.is_none() {
+        warn!(
+            target:"rgsm::commands",
+            "Launch requested for unknown game '{}'",
+            storage_key
+        );
+    }
+
+    let save_check = match &game {
+        Some(game) if checks_saves_before_launch(&config, game) => {
             match svc(&app_handle)
-                .restore_missing_save_path(&game, HookSource::GameLaunchAutoRestore, None)
+                .restore_missing_save_path(game, HookSource::GameLaunchAutoRestore, None)
                 .await
             {
                 Ok(decision) => {
@@ -374,28 +397,43 @@ pub async fn launch_game(
                 }
             }
         }
-        Some(_) => LaunchSaveCheck::Disabled,
-        None => {
-            warn!(
-                target:"rgsm::commands",
-                "Launch requested for unknown game '{}'",
-                storage_key
-            );
-            LaunchSaveCheck::Disabled
-        }
+        _ => LaunchSaveCheck::Disabled,
     };
 
-    let path_outcome = rgsm_core::path_launcher::open_managed_location(&path, None, &config)
+    // A resolution failure falls back to the configured path, so the player still
+    // gets the launch attempt's own error instead of a silent no-op.
+    let dispatch = match &game {
+        Some(game) => rgsm_core::path_launcher::resolve_game_launch(game, &path, None, &config)
+            .unwrap_or(GameLaunchDispatch::ConfiguredPath(PathBuf::from(&path))),
+        None => GameLaunchDispatch::ConfiguredPath(PathBuf::from(&path)),
+    };
+    let route = match dispatch {
+        GameLaunchDispatch::Steam { app_id } => {
+            info!(
+                target:"rgsm::commands",
+                "Launching Steam game {app_id} through the Steam client"
+            );
+            rgsm_core::path_launcher::open_steam_game(&app_id).map_err(|e| {
+                error!(target:"rgsm::commands", "Failed to launch Steam game: {:?}", e);
+                e.to_string()
+            })?;
+            LaunchRoute::Steam { app_id }
+        }
+        GameLaunchDispatch::ConfiguredPath(path) => LaunchRoute::Path {
+            outcome: open_launch_path(&path.to_string_lossy(), &config)?,
+        },
+    };
+
+    Ok(LaunchGameOutcome { route, save_check })
+}
+
+fn open_launch_path(path: &str, config: &Config) -> Result<OpenPathOutcome, String> {
+    rgsm_core::path_launcher::open_managed_location(path, None, config)
         .map(OpenPathOutcome::from)
         .map_err(|e| {
             error!(target:"rgsm::commands", "Failed to launch game: {:?}", e);
             e.to_string()
-        })?;
-
-    Ok(LaunchGameOutcome {
-        path: path_outcome,
-        save_check,
-    })
+        })
 }
 
 fn find_game_by_identity(config: &Config, identity: &str) -> Option<Game> {

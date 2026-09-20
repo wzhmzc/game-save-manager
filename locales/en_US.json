@@ -423,6 +423,8 @@
         "launch_archive_missing": "No archive available on this device",
         "launch_archive_missing_detail": "The save location does not exist and no archive is available on this device; the game was launched anyway",
         "launch_restore_failed": "Automatic restore failed",
+        "launch_via_steam": "Handed to Steam",
+        "launch_via_steam_detail": "This game belongs to a Steam library, so running its executable directly would fail against Steam DRM. Steam is launching it instead; make sure Steam is running if nothing happens.",
         "process_monitor_summary": "Follow a running game process",
         "process_monitor_save_success": "Process monitor settings saved",
         "process_monitor_save_failed": "Failed to save process monitor settings",

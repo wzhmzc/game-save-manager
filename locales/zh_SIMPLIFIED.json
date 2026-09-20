@@ -423,6 +423,8 @@
         "launch_archive_missing": "本机没有可用的备份文件",
         "launch_archive_missing_detail": "存档位置不存在，但本机没有该游戏的备份文件，已直接启动游戏",
         "launch_restore_failed": "自动恢复存档失败",
+        "launch_via_steam": "已交给 Steam 启动",
+        "launch_via_steam_detail": "该游戏属于 Steam 库，直接运行 exe 会因 Steam DRM 无法启动，已改用 Steam 拉起。若没有反应，请确认 Steam 正在运行。",
         "process_monitor_summary": "跟随正在运行的游戏进程",
         "process_monitor_save_success": "进程监控设置已保存",
         "process_monitor_save_failed": "保存进程监控设置失败",

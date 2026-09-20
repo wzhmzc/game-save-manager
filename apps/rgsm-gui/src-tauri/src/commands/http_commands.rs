@@ -2546,6 +2546,7 @@ pub fn router() -> Router<HttpHostState> {
         crate::commands::CloudSyncErrorEvent,
         crate::quick_actions::QuickActionCompleted,
         crate::commands::LaunchGameOutcome,
+        crate::commands::LaunchRoute,
         crate::commands::LaunchSaveCheck,
         OpenUrlRequest,
         OpenFileOrFolderRequest,

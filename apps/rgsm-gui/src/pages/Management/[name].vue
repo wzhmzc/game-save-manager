@@ -604,6 +604,9 @@ async function launch_game() {
       return;
     }
     reportLaunchSaveCheck(result.data.save_check);
+    if (result.data.route.kind === 'steam') {
+      notifyInfo($t('manage.launch_via_steam'), $t('manage.launch_via_steam_detail'));
+    }
     markGamePlayed(game.value);
   }
 }
