@@ -10,6 +10,7 @@ import {
   type Device,
   type Game,
   type GameSnapshots,
+  type LaunchSaveCheck,
   type Snapshot,
 } from '../../api/commands';
 import SaveLocationDrawer from '../../components/SaveLocationDrawer.vue';
@@ -596,12 +597,43 @@ async function launch_game() {
     notifyError($t('manage.no_launch_path_error'));
     return;
   } else {
-    const result = await commands.openFileOrFolder(gamePath);
+    const gameId = game.value.storage_key || game.value.name;
+    const result = await commands.launchGame(gameId, gamePath);
     if (result.status === 'error') {
       notifyError(result.error);
-    } else {
-      markGamePlayed(game.value);
+      return;
     }
+    reportLaunchSaveCheck(result.data.save_check);
+    markGamePlayed(game.value);
+  }
+}
+
+/**
+ * Surface what the pre-launch save check did. Quiet outcomes stay silent: the
+ * check runs on every launch, so only a restore or a problem is worth reporting.
+ */
+function reportLaunchSaveCheck(check: LaunchSaveCheck) {
+  switch (check.status) {
+    case 'restored':
+      notifySuccess(
+        $t('manage.launch_restored'),
+        $t('manage.launch_restored_detail', { date: check.date })
+      );
+      break;
+    case 'noBackupAvailable':
+      notifyWarning($t('manage.launch_no_backup'), $t('manage.launch_no_backup_detail'));
+      break;
+    case 'localArchiveMissing':
+      notifyWarning(
+        $t('manage.launch_archive_missing'),
+        $t('manage.launch_archive_missing_detail')
+      );
+      break;
+    case 'failed':
+      notifyError($t('manage.launch_restore_failed'), check.error);
+      break;
+    default:
+      break;
   }
 }
 

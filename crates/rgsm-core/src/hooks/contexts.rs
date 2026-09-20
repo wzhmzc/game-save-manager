@@ -17,9 +17,9 @@ pub enum HookSource {
     QuickActionHotkey,
     QuickActionTray,
     ProcessMonitorAutoBackup,
-    /// A monitored process started while an enabled save location was missing, so
-    /// the latest local Snapshot was applied.
-    ProcessMonitorAutoRestore,
+    /// The player launched a Game from the client while an enabled save location
+    /// was unavailable, so the latest local Snapshot was applied first.
+    GameLaunchAutoRestore,
     CloudSync,
     CloudConflictResolution,
     Internal,

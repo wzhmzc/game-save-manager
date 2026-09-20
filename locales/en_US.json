@@ -413,8 +413,16 @@
         "process_monitor_on_exit": "On exit",
         "process_monitor_interval": "While running",
         "process_monitor_interval_secs": "Interval (sec)",
-        "process_monitor_restore_missing": "Restore when the save location is missing",
-        "process_monitor_restore_missing_hint": "When the process starts and an enabled save location is unavailable, restore the latest Snapshot. This writes live save data, so enabling overwrite backups is recommended.",
+        "launch_check": "Check saves before launching",
+        "launch_check_summary": "Verify the save location before launching a game from this app",
+        "launch_check_hint": "When the game is launched and an enabled save location does not exist, restore the latest Snapshot first and then launch the game. This writes live save data, so enabling overwrite backups is recommended.",
+        "launch_restored": "Save data restored automatically",
+        "launch_restored_detail": "The save location did not exist, so Snapshot %{date} was restored before launching",
+        "launch_no_backup": "Nothing available to restore",
+        "launch_no_backup_detail": "The save location does not exist and this game has no Snapshot; the game was launched anyway",
+        "launch_archive_missing": "No archive available on this device",
+        "launch_archive_missing_detail": "The save location does not exist and no archive is available on this device; the game was launched anyway",
+        "launch_restore_failed": "Automatic restore failed",
         "process_monitor_summary": "Follow a running game process",
         "process_monitor_save_success": "Process monitor settings saved",
         "process_monitor_save_failed": "Failed to save process monitor settings",
@@ -1191,14 +1199,6 @@
         "backup": {
             "extra_backup_file_not_exist": "Since the file does not exist, the extra backup (pre-overwrite backup) cannot be completed. If you don't need this feature, turn it off in settings.",
             "backup_file_not_exist": "File %{name} does not exist, cannot be backed up or restored"
-        },
-        "auto_restore": {
-            "restored": "Save data restored automatically",
-            "restored_detail": "The save location of %{game} was missing, so Snapshot %{date} was restored",
-            "failed": "Automatic restore failed",
-            "failed_detail": "The save location of %{game} is missing, but the automatic restore failed",
-            "no_backup_detail": "The save location of %{game} is missing and no Snapshot is available to restore",
-            "archive_missing_detail": "The save location of %{game} is missing and no archive is available on this device"
         },
         "archive": {
             "file_not_exist": "The path %{path} does not exist and has been automatically created.",

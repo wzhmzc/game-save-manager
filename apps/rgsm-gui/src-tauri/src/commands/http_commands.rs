@@ -59,6 +59,30 @@ pub async fn http_open_file_or_folder(
         .map_err(ApiError::from_command)
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchGameRequest {
+    pub storage_key: String,
+    pub path: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/launch-game",
+    operation_id = "launchGame",
+    request_body = LaunchGameRequest,
+    responses((status = 200, body = LaunchGameOutcome), (status = 400, body = ApiError), (status = 401, body = ApiError), (status = 500, body = ApiError))
+)]
+pub async fn http_launch_game(
+    State(state): State<HttpHostState>,
+    Json(request): Json<LaunchGameRequest>,
+) -> Result<Json<LaunchGameOutcome>, ApiError> {
+    commands::launch_game(state.app().clone(), request.storage_key, request.path)
+        .await
+        .map(Json)
+        .map_err(ApiError::from_command)
+}
+
 #[utoipa::path(
     post,
     path = "/api/v1/get-app-log-dir",
@@ -2109,6 +2133,7 @@ pub fn router() -> Router<HttpHostState> {
             "/api/v1/open-file-or-folder",
             post(http_open_file_or_folder),
         )
+        .route("/api/v1/launch-game", post(http_launch_game))
         .route("/api/v1/get-app-log-dir", post(http_get_app_log_dir))
         .route("/api/v1/choose-save-file", post(http_choose_save_file))
         .route("/api/v1/choose-save-dir", post(http_choose_save_dir))
@@ -2406,6 +2431,7 @@ pub fn router() -> Router<HttpHostState> {
         http_open_url,
         http_get_build_info,
         http_open_file_or_folder,
+        http_launch_game,
         http_get_app_log_dir,
         http_choose_save_file,
         http_choose_save_dir,
@@ -2519,8 +2545,11 @@ pub fn router() -> Router<HttpHostState> {
         crate::commands::CloudSyncStatusEvent,
         crate::commands::CloudSyncErrorEvent,
         crate::quick_actions::QuickActionCompleted,
+        crate::commands::LaunchGameOutcome,
+        crate::commands::LaunchSaveCheck,
         OpenUrlRequest,
         OpenFileOrFolderRequest,
+        LaunchGameRequest,
         AddGameRequest,
         UpdateGameRequest,
         RestoreSnapshotRequest,

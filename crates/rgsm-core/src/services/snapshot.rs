@@ -24,8 +24,8 @@ fn notify_stage(notifier: Option<&dyn RestoreNotifier>, msg: &str) {
     }
 }
 
-/// Outcome of the automatic restore that runs when a monitored process starts
-/// while an enabled save location of its Game is unavailable.
+/// Outcome of the automatic restore that runs before a Game is launched from the
+/// client, when an enabled save location of that Game is unavailable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AutoRestoreDecision {
     /// The latest locally available Snapshot was applied.
@@ -83,8 +83,7 @@ impl ServiceContext {
     /// Restore the latest locally available Snapshot when an enabled save
     /// location is unavailable.
     ///
-    /// This is the only path that writes live save data without an explicit
-    /// player action, so it stays behind a per-Game opt-in and never invents a
+    /// This runs before a player-initiated launch, so it never invents a
     /// baseline: it only replays a Snapshot that already exists on this Device.
     /// The `before_restore` gate still runs, so an overwrite backup and the
     /// archive integrity check behave exactly like a manual Apply.

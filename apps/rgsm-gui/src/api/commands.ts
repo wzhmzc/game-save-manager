@@ -80,6 +80,14 @@ export const commands = {
       await sdk.openFileOrFolder({ body: { path } })
     );
   },
+  async launchGame(
+    storageKey: types.LaunchGameRequest['storageKey'],
+    path: types.LaunchGameRequest['path']
+  ) {
+    return unwrap<types.LaunchGameResponses[200]>(
+      await sdk.launchGame({ body: { storageKey, path } })
+    );
+  },
   async getAppLogDir() {
     return unwrap<types.GetAppLogDirResponses[200]>(await sdk.getAppLogDir());
   },

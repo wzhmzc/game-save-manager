@@ -62,7 +62,7 @@ const draft = reactive({
   onExit: true,
   intervalEnabled: false,
   processIntervalSecs: 300 as number | undefined,
-  restoreOnMissing: false,
+  restoreBeforeLaunch: false,
 });
 const sharedRetentionEnabled = ref(false);
 const sharedRetentionLimit = ref<number | undefined>(10);
@@ -83,15 +83,14 @@ function syncDraft() {
   draft.processEnabled = Boolean(
     automation?.on_process_start ||
     automation?.on_process_exit ||
-    automation?.in_process_interval_secs != null ||
-    automation?.restore_missing_save_on_start
+    automation?.in_process_interval_secs != null
   );
   draft.processName = automation?.process_name ?? '';
   draft.onStart = automation?.on_process_start ?? false;
   draft.onExit = automation?.on_process_exit ?? true;
   draft.intervalEnabled = automation?.in_process_interval_secs != null;
   draft.processIntervalSecs = automation?.in_process_interval_secs ?? 300;
-  draft.restoreOnMissing = automation?.restore_missing_save_on_start ?? false;
+  draft.restoreBeforeLaunch = automation?.restore_missing_save_before_launch ?? false;
   sharedRetentionEnabled.value = props.cloudGame?.retention_limit != null;
   sharedRetentionLimit.value = props.cloudGame?.retention_limit ?? 10;
 }
@@ -119,19 +118,18 @@ function onTimerPresetChange(value: string) {
 
 function buildAutomation() {
   const hasProcessTrigger =
-    draft.processEnabled &&
-    (draft.onStart || draft.onExit || draft.intervalEnabled || draft.restoreOnMissing);
-  if (!hasProcessTrigger) {
+    draft.processEnabled && (draft.onStart || draft.onExit || draft.intervalEnabled);
+  if (!hasProcessTrigger && !draft.restoreBeforeLaunch) {
     return null;
   }
 
   return {
-    process_name: draft.processName,
+    process_name: draft.processEnabled ? draft.processName : '',
     on_process_start: draft.processEnabled && draft.onStart,
     on_process_exit: draft.processEnabled && draft.onExit,
     in_process_interval_secs:
       draft.processEnabled && draft.intervalEnabled ? (draft.processIntervalSecs ?? 300) : null,
-    restore_missing_save_on_start: draft.processEnabled && draft.restoreOnMissing,
+    restore_missing_save_before_launch: draft.restoreBeforeLaunch,
   };
 }
 
@@ -330,15 +328,22 @@ watch(
               :aria-label="$t('manage.process_monitor_interval_secs')"
             />
           </div>
-          <div class="flex flex-col gap-1.5">
-            <KCheckbox v-model="draft.restoreOnMissing">
-              {{ $t('manage.process_monitor_restore_missing') }}
-            </KCheckbox>
-            <p v-if="draft.restoreOnMissing" class="text-xs leading-relaxed text-text-dim">
-              {{ $t('manage.process_monitor_restore_missing_hint') }}
+        </div>
+      </section>
+
+      <section class="rounded-md border border-border bg-surface p-4">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-text">{{ $t('manage.launch_check') }}</h3>
+            <p class="mt-1 text-xs leading-relaxed text-text-dim">
+              {{ $t('manage.launch_check_summary') }}
             </p>
           </div>
+          <KSwitch v-model="draft.restoreBeforeLaunch" />
         </div>
+        <p v-if="draft.restoreBeforeLaunch" class="mt-3.5 text-xs leading-relaxed text-text-dim">
+          {{ $t('manage.launch_check_hint') }}
+        </p>
       </section>
 
       <p class="text-xs leading-relaxed text-text-dim">

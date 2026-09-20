@@ -20,15 +20,16 @@ export function findGameAutomation(config: Config, game: Game): GameAutomationSe
 
 /**
  * Whether the game has any auto-save behaviour configured: timer auto-backup,
- * or a process trigger.
+ * a process trigger, or the pre-launch save check.
  */
 export function isAutoSaveConfigured(config: Config, game: Game): boolean {
   const automation = findGameAutomation(config, game);
   const hasProcessTrigger = Boolean(
     automation?.on_process_start ||
     automation?.on_process_exit ||
-    automation?.in_process_interval_secs != null ||
-    automation?.restore_missing_save_on_start
+    automation?.in_process_interval_secs != null
   );
-  return Boolean(game.auto_backup || hasProcessTrigger);
+  return Boolean(
+    game.auto_backup || hasProcessTrigger || automation?.restore_missing_save_before_launch
+  );
 }

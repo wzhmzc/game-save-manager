@@ -24,7 +24,7 @@ use rgsm_core::path_resolution::ResolutionReport;
 use rgsm_core::path_resolver;
 use rgsm_core::preclude::*;
 use rgsm_core::services::{
-    CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus,
+    AutoRestoreDecision, CloudLibraryCutoverOutcome, CloudLibraryJoinOutcome, CloudLibraryStatus,
     CurrentPositionDecision, GameSyncModeOutcome, LiveSaveSyncOptions, ServiceContext,
 };
 use rgsm_core::steam;
@@ -290,6 +290,127 @@ pub async fn open_file_or_folder(path: String) -> Result<OpenPathOutcome, String
             error!(target:"rgsm::commands", "Failed to open file or folder: {:?}", e);
             e.to_string()
         })
+}
+
+/// What the pre-launch save check did, reported to the player.
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum LaunchSaveCheck {
+    /// The Game does not enable the pre-launch check.
+    Disabled,
+    /// The latest locally available Snapshot was applied before launching.
+    Restored { date: String },
+    /// Every enabled save location was available, so nothing was written.
+    SavePresent,
+    /// The Game has no enabled Save Unit to check.
+    NoEnabledSaveUnits,
+    /// The Game has no Snapshot to restore.
+    NoBackupAvailable,
+    /// Snapshots exist, but none has an archive on this Device.
+    LocalArchiveMissing,
+    /// The check or the restore failed; the Game still launched.
+    Failed { error: String },
+}
+
+impl From<AutoRestoreDecision> for LaunchSaveCheck {
+    fn from(decision: AutoRestoreDecision) -> Self {
+        match decision {
+            AutoRestoreDecision::Restored { date } => Self::Restored { date },
+            AutoRestoreDecision::SkippedSavePathPresent => Self::SavePresent,
+            AutoRestoreDecision::SkippedNoEnabledSaveUnits => Self::NoEnabledSaveUnits,
+            AutoRestoreDecision::SkippedNoLocalArchive => Self::LocalArchiveMissing,
+            AutoRestoreDecision::NoBackupAvailable => Self::NoBackupAvailable,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Type, utoipa::ToSchema)]
+pub struct LaunchGameOutcome {
+    pub path: OpenPathOutcome,
+    pub save_check: LaunchSaveCheck,
+}
+
+/// Launch a Game the player selected, restoring a missing save location first.
+///
+/// The check only runs when the Game opts in; every other outcome still launches
+/// the Game, because a missing save location is also the normal state of a Game
+/// that has never been played on this Device.
+pub async fn launch_game(
+    app_handle: AppHandle,
+    storage_key: String,
+    path: String,
+) -> Result<LaunchGameOutcome, String> {
+    info!(
+        target:"rgsm::commands",
+        "Launching game '{}' from '{}'",
+        storage_key,
+        path
+    );
+
+    let config = get_config().map_err(|e| e.to_string())?;
+    let save_check = match find_game_by_identity(&config, &storage_key) {
+        Some(game) if checks_saves_before_launch(&config, &game) => {
+            match svc(&app_handle)
+                .restore_missing_save_path(&game, HookSource::GameLaunchAutoRestore, None)
+                .await
+            {
+                Ok(decision) => {
+                    info!(
+                        target:"rgsm::commands",
+                        "Pre-launch save check for '{}': {decision:?}",
+                        game.name
+                    );
+                    LaunchSaveCheck::from(decision)
+                }
+                Err(err) => {
+                    warn!(
+                        target:"rgsm::commands",
+                        "Pre-launch save check failed for '{}': {err:?}",
+                        game.name
+                    );
+                    LaunchSaveCheck::Failed {
+                        error: err.to_string(),
+                    }
+                }
+            }
+        }
+        Some(_) => LaunchSaveCheck::Disabled,
+        None => {
+            warn!(
+                target:"rgsm::commands",
+                "Launch requested for unknown game '{}'",
+                storage_key
+            );
+            LaunchSaveCheck::Disabled
+        }
+    };
+
+    let path_outcome = rgsm_core::path_launcher::open_managed_location(&path, None, &config)
+        .map(OpenPathOutcome::from)
+        .map_err(|e| {
+            error!(target:"rgsm::commands", "Failed to launch game: {:?}", e);
+            e.to_string()
+        })?;
+
+    Ok(LaunchGameOutcome {
+        path: path_outcome,
+        save_check,
+    })
+}
+
+fn find_game_by_identity(config: &Config, identity: &str) -> Option<Game> {
+    config
+        .games
+        .iter()
+        .find(|game| game.storage_key == identity || game.name == identity)
+        .cloned()
+}
+
+fn checks_saves_before_launch(config: &Config, game: &Game) -> bool {
+    config
+        .quick_action
+        .automation_for_game(game)
+        .is_some_and(|automation| automation.checks_saves_before_launch())
 }
 
 pub async fn get_app_log_dir(app: AppHandle) -> Result<String, String> {

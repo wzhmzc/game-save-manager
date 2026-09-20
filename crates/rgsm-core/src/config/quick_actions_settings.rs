@@ -188,7 +188,7 @@ impl QuickActionsSettings {
             on_process_start: draft.on_process_start,
             on_process_exit: draft.on_process_exit,
             in_process_interval_secs: draft.in_process_interval_secs,
-            restore_missing_save_on_start: draft.restore_missing_save_on_start,
+            restore_missing_save_before_launch: draft.restore_missing_save_before_launch,
         };
 
         if let Some(existing) = self
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn stored_automations_without_the_restore_flag_stay_disabled() {
+    fn stored_automations_without_the_launch_check_stay_disabled() {
         let stored = serde_json::json!({
             "game_name": "Game",
             "process_name": "game.exe",
@@ -301,12 +301,13 @@ mod tests {
 
         let automation: GameAutomationSettings = serde_json::from_value(stored).unwrap();
 
-        assert!(!automation.restore_missing_save_on_start);
+        assert!(!automation.restore_missing_save_before_launch);
+        assert!(!automation.checks_saves_before_launch());
         assert!(automation.has_process_triggers());
     }
 
     #[test]
-    fn restore_flag_alone_counts_as_a_process_trigger() {
+    fn launch_check_alone_is_not_a_process_trigger() {
         let settings = GameAutomationSettings {
             storage_key: "key".to_string(),
             game_name: "Game".to_string(),
@@ -314,33 +315,34 @@ mod tests {
             on_process_start: false,
             on_process_exit: false,
             in_process_interval_secs: None,
-            restore_missing_save_on_start: true,
+            restore_missing_save_before_launch: true,
         };
         let draft = GameAutomationSettingsDraft {
             process_name: String::new(),
             on_process_start: false,
             on_process_exit: false,
             in_process_interval_secs: None,
-            restore_missing_save_on_start: true,
+            restore_missing_save_before_launch: true,
         };
 
-        assert!(settings.has_process_triggers());
-        assert!(draft.has_process_triggers());
+        assert!(!settings.has_process_triggers());
+        assert!(!draft.has_process_triggers());
+        assert!(settings.checks_saves_before_launch());
     }
 
     #[test]
-    fn upsert_carries_the_restore_flag() {
+    fn upsert_carries_the_launch_check() {
         let target = game("Game", "key");
         let mut settings = QuickActionsSettings::default();
 
         settings.upsert_game_automation(
             &target,
             GameAutomationSettingsDraft {
-                process_name: "game.exe".to_string(),
+                process_name: String::new(),
                 on_process_start: false,
                 on_process_exit: false,
                 in_process_interval_secs: None,
-                restore_missing_save_on_start: true,
+                restore_missing_save_before_launch: true,
             },
         );
 
@@ -348,7 +350,7 @@ mod tests {
             settings
                 .automation_for_game(&target)
                 .unwrap()
-                .restore_missing_save_on_start
+                .restore_missing_save_before_launch
         );
     }
 }
@@ -375,11 +377,12 @@ pub struct GameAutomationSettings {
     pub on_process_exit: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_process_interval_secs: Option<u32>,
-    /// Restore the latest local Snapshot when a monitored process starts while an
-    /// enabled save location of that Game is unavailable. Opt-in per Game: unlike
-    /// every other process trigger this writes live save data.
+    /// Before this Game is launched from the client, restore the latest locally
+    /// available Snapshot when an enabled save location is unavailable. Opt-in per
+    /// Game: unlike every process trigger this writes live save data, and it only
+    /// runs on an explicit player launch.
     #[serde(default)]
-    pub restore_missing_save_on_start: bool,
+    pub restore_missing_save_before_launch: bool,
 }
 
 impl GameAutomationSettings {
@@ -394,11 +397,15 @@ impl GameAutomationSettings {
         self.game_name == game_name
     }
 
+    /// Whether the process monitor must watch this Game. The pre-launch save check
+    /// is deliberately excluded: it needs no process name and no polling.
     pub fn has_process_triggers(&self) -> bool {
-        self.on_process_start
-            || self.on_process_exit
-            || self.in_process_interval_secs.is_some()
-            || self.restore_missing_save_on_start
+        self.on_process_start || self.on_process_exit || self.in_process_interval_secs.is_some()
+    }
+
+    /// Whether launching this Game from the client should check save availability.
+    pub fn checks_saves_before_launch(&self) -> bool {
+        self.restore_missing_save_before_launch
     }
 }
 
@@ -413,14 +420,11 @@ pub struct GameAutomationSettingsDraft {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_process_interval_secs: Option<u32>,
     #[serde(default)]
-    pub restore_missing_save_on_start: bool,
+    pub restore_missing_save_before_launch: bool,
 }
 
 impl GameAutomationSettingsDraft {
     pub fn has_process_triggers(&self) -> bool {
-        self.on_process_start
-            || self.on_process_exit
-            || self.in_process_interval_secs.is_some()
-            || self.restore_missing_save_on_start
+        self.on_process_start || self.on_process_exit || self.in_process_interval_secs.is_some()
     }
 }
