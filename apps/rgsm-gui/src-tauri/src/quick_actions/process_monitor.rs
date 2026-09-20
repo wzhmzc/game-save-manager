@@ -17,7 +17,7 @@ use super::{QuickActionType, perform_auto_restore, perform_changed_auto_backup};
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 /// What a process state transition asks the monitor to do, in execution order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum ProcessTrigger {
     /// An enabled save location is missing, so the latest local Snapshot is applied
     /// before the process gets a chance to write new progress over it.

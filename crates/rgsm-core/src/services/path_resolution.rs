@@ -169,10 +169,10 @@ impl ServiceContext {
         game.save_paths
             .iter()
             .filter(|save_unit| save_unit.enabled)
-            .filter_map(|save_unit| {
-                let report = self.resolve_save_unit(config, game, save_unit);
-                is_missing_capture_report(&report).then_some(save_unit.id)
+            .filter(|save_unit| {
+                is_missing_capture_report(&self.resolve_save_unit(config, game, save_unit))
             })
+            .map(|save_unit| save_unit.id)
             .collect()
     }
 
