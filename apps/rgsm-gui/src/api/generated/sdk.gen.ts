@@ -169,6 +169,9 @@ import type {
   KeepV2LocalProgressData,
   KeepV2LocalProgressErrors,
   KeepV2LocalProgressResponses,
+  LaunchGameData,
+  LaunchGameErrors,
+  LaunchGameResponses,
   ListConfigBackupsData,
   ListConfigBackupsErrors,
   ListConfigBackupsResponses,
@@ -973,6 +976,18 @@ export const keepV2LocalProgress = <ThrowOnError extends boolean = false>(
     ThrowOnError
   >({
     url: '/api/v1/keep-v2-local-progress',
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+export const launchGame = <ThrowOnError extends boolean = false>(
+  options: Options<LaunchGameData, ThrowOnError>
+): RequestResult<LaunchGameResponses, LaunchGameErrors, ThrowOnError> =>
+  (options.client ?? client).post<LaunchGameResponses, LaunchGameErrors, ThrowOnError>({
+    url: '/api/v1/launch-game',
     ...options,
     headers: {
       'Content-Type': 'application/json',

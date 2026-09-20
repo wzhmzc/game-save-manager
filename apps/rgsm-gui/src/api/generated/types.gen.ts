@@ -633,11 +633,12 @@ export type GameAutomationSettings = {
   on_process_start?: boolean;
   process_name?: string;
   /**
-   * Restore the latest local Snapshot when a monitored process starts while an
-   * enabled save location of that Game is unavailable. Opt-in per Game: unlike
-   * every other process trigger this writes live save data.
+   * Before this Game is launched from the client, restore the latest locally
+   * available Snapshot when an enabled save location is unavailable. Opt-in per
+   * Game: unlike every process trigger this writes live save data, and it only
+   * runs on an explicit player launch.
    */
-  restore_missing_save_on_start?: boolean;
+  restore_missing_save_before_launch?: boolean;
   storage_key?: string;
 };
 
@@ -646,7 +647,7 @@ export type GameAutomationSettingsDraft = {
   on_process_exit?: boolean;
   on_process_start?: boolean;
   process_name?: string;
-  restore_missing_save_on_start?: boolean;
+  restore_missing_save_before_launch?: boolean;
 };
 
 export type GameDefinitionDifference = {
@@ -823,6 +824,44 @@ export type KeepV2LocalProgressRequest = {
   localSnapshotId: string;
   manifestRevision: number;
 };
+
+export type LaunchGameOutcome = {
+  path: OpenPathOutcome;
+  save_check: LaunchSaveCheck;
+};
+
+export type LaunchGameRequest = {
+  path: string;
+  storageKey: string;
+};
+
+/**
+ * What the pre-launch save check did, reported to the player.
+ */
+export type LaunchSaveCheck =
+  | {
+      status: 'disabled';
+    }
+  | {
+      date: string;
+      status: 'restored';
+    }
+  | {
+      status: 'savePresent';
+    }
+  | {
+      status: 'noEnabledSaveUnits';
+    }
+  | {
+      status: 'noBackupAvailable';
+    }
+  | {
+      status: 'localArchiveMissing';
+    }
+  | {
+      error: string;
+      status: 'failed';
+    };
 
 export type LiveSaveSyncOptions = {
   process_name: string;
@@ -2736,6 +2775,27 @@ export type KeepV2LocalProgressResponses = {
 
 export type KeepV2LocalProgressResponse =
   KeepV2LocalProgressResponses[keyof KeepV2LocalProgressResponses];
+
+export type LaunchGameData = {
+  body: LaunchGameRequest;
+  path?: never;
+  query?: never;
+  url: '/api/v1/launch-game';
+};
+
+export type LaunchGameErrors = {
+  400: ApiError;
+  401: ApiError;
+  500: ApiError;
+};
+
+export type LaunchGameError = LaunchGameErrors[keyof LaunchGameErrors];
+
+export type LaunchGameResponses = {
+  200: LaunchGameOutcome;
+};
+
+export type LaunchGameResponse = LaunchGameResponses[keyof LaunchGameResponses];
 
 export type ListConfigBackupsData = {
   body?: never;
